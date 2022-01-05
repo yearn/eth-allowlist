@@ -1,0 +1,6 @@
+compiler:
+  solc:
+    optimizer:
+      details:
+        cse: true
+        yul: false
