@@ -56,20 +56,34 @@ library Strings {
 
   /**
    * @notice Check to see if two strings are exactly equal
-   * @dev Only valid for strings up to 32 characters
    */
   function stringsEqual(string memory input1, string memory input2)
-    internal
+    public
     pure
     returns (bool)
   {
+    uint256 input1Length = bytes(input1).length;
+    uint256 input2Length = bytes(input2).length;
+    uint256 maxLength;
+    if (input1Length > input2Length) {
+      maxLength = input1Length;
+    } else {
+      maxLength = input2Length;
+    }
+    uint256 numberOfRowsToCompare = (maxLength / 32) + 1;
     bytes32 input1Bytes32;
     bytes32 input2Bytes32;
-    assembly {
-      input1Bytes32 := mload(add(input1, 32))
-      input2Bytes32 := mload(add(input2, 32))
+    for (uint256 rowIdx; rowIdx < numberOfRowsToCompare; rowIdx++) {
+      uint256 offset = 0x20 * (rowIdx + 1);
+      assembly {
+        input1Bytes32 := mload(add(input1, offset))
+        input2Bytes32 := mload(add(input2, offset))
+      }
+      if (input1Bytes32 != input2Bytes32) {
+        return false;
+      }
     }
-    return input1Bytes32 == input2Bytes32;
+    return true;
   }
 
   function atoi(string memory a, uint8 base) public pure returns (uint256 i) {
@@ -110,61 +124,5 @@ library Strings {
       buf[p] ^= buf[length - 1 - p];
     }
     return string(buf);
-  }
-
-  function itoa16Padded(uint256 i) public pure returns (string memory) {
-    string memory result = itoa(i, 16);
-    if (i <= 15) {
-      result = string(abi.encodePacked("0", result));
-    }
-    return result;
-  }
-
-  function hexStringFromBytes(bytes memory chars)
-    public
-    pure
-    returns (string memory)
-  {
-    uint256 charsLength = chars.length;
-    string memory result;
-    for (uint256 charIdx = 0; charIdx < charsLength; charIdx++) {
-      bytes1 charByte = chars[charIdx];
-      string memory charStr = itoa16Padded(uint256(uint8(charByte)));
-      (charByte);
-      result = string(abi.encodePacked(result, charStr));
-    }
-    return result;
-  }
-
-  // Same as itoa16Padded.. which is more gas efficient?
-  function asciiCharFromHexByte(bytes1 word)
-    public
-    pure
-    returns (string memory)
-  {
-    uint8 uintWord = uint8(word);
-    bytes1 msb;
-    uint8 lsbUint;
-    uint8 msbUint;
-    assembly {
-      msb := shr(4, word) // 0xAF >> 4 = 0x0A
-      lsbUint := and(uintWord, 0x0F) // 0xAF & 0x0F = 0x0F
-    }
-    msbUint = uint8(msb);
-    assembly {
-      if gt(msbUint, 9) {
-        msbUint := add(msbUint, 55)
-      }
-      if gt(lsbUint, 9) {
-        lsbUint := add(lsbUint, 55)
-      }
-      if lt(msbUint, 10) {
-        msbUint := add(msbUint, 48)
-      }
-      if lt(lsbUint, 10) {
-        lsbUint := add(lsbUint, 48)
-      }
-    }
-    return string(abi.encodePacked(msbUint, lsbUint));
   }
 }

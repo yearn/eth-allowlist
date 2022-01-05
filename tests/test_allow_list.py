@@ -17,6 +17,10 @@ def allowlist(allowlistFactory, Allowlist, protocol_owner_address):
     tx = allowlistFactory.startProtocolRegistration(origin_name, {"from": protocol_owner_address})
     return Allowlist.at(tx.new_contracts[0])
 
+@pytest.fixture
+def implementation_address(YearnAllowlistImplementation, rando):
+    return YearnAllowlistImplementation.deploy({"from": rando})
+    
 def test_allowlist_factory_owner_lookup(allowlistFactory, protocol_owner_address):
     # Must be able to look up protocol owner address given an origin name
     derived_owner_address = allowlistFactory.protocolOwnerAddressByOriginName(origin_name)
@@ -36,126 +40,92 @@ def test_allowlist_factory_start_registration(allowlistFactory, Allowlist, rando
     # Starting protocol registration must save the protocol allowlist address
     allowlistFactory.allowlistAddressByOriginName(origin_name) == allowlist_address
 
-def test_allowlist_factory_finish_registration(allowlistFactory, allowlist, YearnAllowlistImplementation, rando, protocol_owner_address):
-    # Cannot finish registration without
-    with brownie.reverts():
-        allowlistFactory.finishProtocolRegistration(origin_name, {"from": protocol_owner_address})
-
+def test_allowlist_factory_finish_registration(allowlistFactory, implementation_address, allowlist, protocol_owner_address):
     # Cannot finish registration without having at least one condition
-    implementation_address = YearnAllowlistImplementation.deploy({"from": rando})
-    chain.snapshot()
-    allowlist.setImplementationAddress(implementation_address, {"from": protocol_owner_address})
+    assert allowlist.conditionsLength() == 0
     with brownie.reverts():
         allowlistFactory.finishProtocolRegistration(origin_name, {"from": protocol_owner_address})
-    chain.revert()
     
-    # Adding a valid condition without validation
+    # Owners can add valid conditions
     condition = (
         "approve",
         ["address", "uint256"],
         [
             ["target", "isVaultToken"], 
             ["param", "isVault", "0"]
-        ]
+        ],
+        implementation_address
     )
-    allowlist.addConditionWithoutValidation(condition, {"from": protocol_owner_address})
+    allowlist.addCondition(condition, {"from": protocol_owner_address})
     
-    # Set a valid implementation
-    allowlist.setImplementationAddress(implementation_address, {"from": protocol_owner_address})
+    # Cannot finish registration if implementation is invalid
+    condition_invalid = (
+        "approve",
+        ["address", "uint256"],
+        [
+            ["target", "isVaultToken"], 
+            ["param", "missingValidationMethod", "0"]
+        ],
+        implementation_address
+    )
+    allowlist.addConditionWithoutValidation(condition_invalid, {"from": protocol_owner_address})
+    with brownie.reverts():
+        allowlistFactory.finishProtocolRegistration(origin_name, {"from": protocol_owner_address})
     
-    # Protocols with at least one valid condition and valid implementation must be allowed to finish registration
+    # Protocols with at least one valid condition must be allowed to finish registration
+    allowlist.deleteCondition(1, {"from": protocol_owner_address}) # Remove invalid condition
     registered_protocols = allowlistFactory.registeredProtocolsList()
     assert len(registered_protocols) == 0
     assert allowlistFactory.registeredProtocol(origin_name) == False
     allowlistFactory.finishProtocolRegistration(origin_name, {"from": protocol_owner_address})
-    assert allowlistFactory.registeredProtocol(origin_name) == True
     
     # Fully registered protcols must be on the registered protocols list
     registered_protocols = allowlistFactory.registeredProtocolsList()
+    assert allowlistFactory.registeredProtocol(origin_name) == True
     assert len(registered_protocols) == 1
     assert registered_protocols[0] == origin_name
 
 def test_protocol_allowlist_owner_address(allowlist, protocol_owner_address):
+    # Allowlist owner address must be the address of the protocol owner
     assert allowlist.ownerAddress() == protocol_owner_address
 
-def test_protocol_allowlist_implementation(allowlist, YearnAllowlistImplementation, EmptyAllowlistImplementation, protocol_owner_address, rando):
-    # Add a condition without validation
-    condition = (
-        "approve",
-        ["address", "uint256"],
-        [
-            ["target", "isVaultToken"], 
-            ["param", "isVault", "0"]
-        ]
-    )
-    allowlist.addConditionWithoutValidation(condition, {"from": protocol_owner_address})
-
-    # Only owner can set implementation
-    implementation_address = YearnAllowlistImplementation.deploy({"from": rando})
-    with brownie.reverts():
-        allowlist.setImplementationAddress(implementation_address, {"from": rando})
-    allowlist.setImplementationAddress(implementation_address, {"from": protocol_owner_address})
-
-    # Valid implementations and conditions must pass implementation check
-    assert allowlist.implementationValid() == True
-    
-    # Can't set an invalid implementation
-    empty_implementation_address = EmptyAllowlistImplementation.deploy({"from": protocol_owner_address})
-    with brownie.reverts():
-        allowlist.setImplementationAddress(empty_implementation_address, {"from": protocol_owner_address})
-    
-    # Only owner can set an implementation without validation
-    with brownie.reverts():
-        allowlist.setImplementationAddressWithoutValidation(empty_implementation_address, {"from": rando})
-    
-    # Owner can set an invalid implementation if validation is skipped
-    allowlist.setImplementationAddressWithoutValidation(empty_implementation_address, {"from": protocol_owner_address})
-    
-    # Invalid implementations must fail implementation validity check
-    assert allowlist.implementationValid() == False
-    
-    # Invalid implementations must fail validation check
-    with brownie.reverts():
-        allowlist.validateConditions()
-
-    # Delete all conditions
-    assert allowlist.conditionsLength() > 0
-    allowlist.deleteAllConditions({"from": protocol_owner_address})
-    assert allowlist.conditionsLength() == 0
-    
-    # Make sure implementation is valid if no conditions are present
-    assert allowlist.implementationValid() == True
-    allowlist.validateConditions()
-
-def test_allowlist_conditions(allowlist, YearnAllowlistImplementation, protocol_owner_address, rando):
-    # Set implementation
-    implementation_address = YearnAllowlistImplementation.deploy({"from": rando})
-    allowlist.setImplementationAddressWithoutValidation(implementation_address, {"from": protocol_owner_address})
-    
+def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_address, rando):
     # Only owner can add a condition
-    condition_0 = (
+    condition_valid_0 = (
         "approve",
         ["address", "uint256"],
         [
             ["target", "isVaultToken"], 
             ["param", "isVault", "0"]
-        ]
+        ],
+        implementation_address
     )
-    condition_1 = (
+    condition_valid_1 = (
         "deposit",
         ["uint256"],
         [
             ["target", "isVault"]
-        ]
+        ],
+        implementation_address
+    )
+    condition_invalid_implementation = (
+        "deposit",
+        ["uint256"],
+        [
+            ["target", "invalidTest"]
+        ],
+        implementation_address
     )
     with brownie.reverts():
-        allowlist.addCondition(condition_0, {"from": rando})
+        allowlist.addCondition(condition_valid_0, {"from": rando})
 
-    # Add a valid condition (matches implementation)
-    allowlist.addCondition(condition_0, {"from": protocol_owner_address})
+    # Add a valid condition
+    allowlist.addCondition(condition_valid_0, {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 1
-    allowlist.addCondition(condition_0, {"from": protocol_owner_address})
+    allowlist.addCondition(condition_valid_0, {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 2
+    
+    # Must be able to view conditions by index
     allowlist.conditions(0)
     allowlist.conditions(1)
     
@@ -176,10 +146,15 @@ def test_allowlist_conditions(allowlist, YearnAllowlistImplementation, protocol_
         [
             ["target", "isVaultToken"], 
             ["param", "isVault", "2"] # 0: address, 1: uint256, 2: <invalid>
-        ]
+        ],
+        implementation_address
     )
     with brownie.reverts():
         allowlist.addCondition(condition_with_invalid_param_idx, {"from": protocol_owner_address})
+        
+    # Adding conditions with an invalid implementation should not work
+    with brownie.reverts():
+        allowlist.addCondition(condition_invalid_implementation, {"from": protocol_owner_address})
         
     # Make sure implementation and conditions are still valid
     assert allowlist.implementationValid() == True
@@ -187,8 +162,8 @@ def test_allowlist_conditions(allowlist, YearnAllowlistImplementation, protocol_
 
     # Only owners can add conditions without validation
     with brownie.reverts():
-        allowlist.addConditionWithoutValidation(condition_with_invalid_param_idx, {"from": rando})
-    allowlist.addConditionWithoutValidation(condition_with_invalid_param_idx, {"from": protocol_owner_address})
+        allowlist.addConditionWithoutValidation(condition_invalid_implementation, {"from": rando})
+    allowlist.addConditionWithoutValidation(condition_invalid_implementation, {"from": protocol_owner_address})
     
     # Implementation must now be invalid
     assert allowlist.implementationValid() == False
@@ -209,23 +184,23 @@ def test_allowlist_conditions(allowlist, YearnAllowlistImplementation, protocol_
     
     # Only owners can add multiple conditions
     with brownie.reverts():
-        allowlist.addConditions([condition_0, condition_1], {"from": rando})
-    allowlist.addConditions([condition_0, condition_1], {"from": protocol_owner_address})
+        allowlist.addConditions([condition_valid_0, condition_valid_1], {"from": rando})
+    allowlist.addConditions([condition_valid_0, condition_valid_1], {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 2
     
     # Only owners can update conditions
     with brownie.reverts():
-        allowlist.updateCondition(0, condition_1, {"from": rando})
-    allowlist.updateCondition(0, condition_1, {"from": protocol_owner_address})
+        allowlist.updateCondition(0, condition_valid_1, {"from": rando})
+    allowlist.updateCondition(0, condition_valid_1, {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 2
-    assert allowlist.conditionsList()[0] == condition_1
+    assert allowlist.conditionsList()[0] == condition_valid_1
     
     # Listing conditions must return data
     list = allowlist.conditionsList()
     assert len(list) == 2
-    assert list[0] == condition_1
+    assert list[0] == condition_valid_1
     
-def test_allowlist_factory_test_conditions(allowlist, allowlistFactory, YearnAllowlistImplementation, protocol_owner_address, rando):
+def test_allowlist_factory_test_conditions(allowlist, implementation_address, allowlistFactory, YearnAllowlistImplementation, protocol_owner_address, rando):
     # Set up protocol allowlist
     condition = (
         "approve",
@@ -233,11 +208,10 @@ def test_allowlist_factory_test_conditions(allowlist, allowlistFactory, YearnAll
         [
             ["target", "isVaultToken"], 
             ["param", "isVault", "0"]
-        ]
+        ],
+        implementation_address
     )
     allowlist.addConditionWithoutValidation(condition, {"from": protocol_owner_address})
-    implementation_address = YearnAllowlistImplementation.deploy({"from": rando})
-    allowlist.setImplementationAddress(implementation_address, {"from": protocol_owner_address})
     allowlistFactory.finishProtocolRegistration(origin_name, {"from": protocol_owner_address})
 
     # Test fetching conditions by origin name

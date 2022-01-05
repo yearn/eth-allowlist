@@ -26,12 +26,14 @@ contract Allowlist {
     string methodName;
     string[] paramTypes;
     string[][] requirements;
+    address implementationAddress;
   }
 
   Condition[] public conditions; // Array of conditions per protocol (managed by protocol owner)
   string public protocolOriginName; // Domain name of protocol (ie. "yearn.finance")
   address public immutable rootAllowlistAddress; // Address of root allowlist (parent/factory)
-  address public implementationAddress; // Upgradable address of protocol specific validation method implementation
+
+  //   address public implementationAddress; // Upgradable address of protocol specific validation method implementation
 
   constructor(string memory _protocolOriginName) {
     rootAllowlistAddress = msg.sender;
@@ -55,24 +57,7 @@ contract Allowlist {
   }
 
   /*******************************************************
-   *                  Implementation logic
-   *******************************************************/
-  function setImplementationAddress(address _implementationAddress)
-    public
-    onlyOwner
-  {
-    implementationAddress = _implementationAddress;
-    validateConditions();
-  }
-
-  function setImplementationAddressWithoutValidation(
-    address _implementationAddress
-  ) public onlyOwner {
-    implementationAddress = _implementationAddress;
-  }
-
-  /*******************************************************
-   *                     Condition CRUD Logic
+   *                   Condition CRUD Logic
    *******************************************************/
   function addCondition(Condition memory condition) public onlyOwner {
     validateCondition(condition);
@@ -151,23 +136,10 @@ contract Allowlist {
     return conditions.length;
   }
 
-  function setImplementationAndConditions(
-    address _implementationAddress,
-    Condition[] memory _conditions
-  ) public onlyOwner {
-    deleteAllConditions();
-    setImplementationAddressWithoutValidation(_implementationAddress);
-    addConditionsWithoutValidation(_conditions);
-  }
-
   /*******************************************************
-   *                 Condition Validation Logic
+   *                Condition Validation Logic
    *******************************************************/
   function validateCondition(Condition memory condition) public view {
-    require(
-      implementationAddress != address(0),
-      "Implementation address is not yet set"
-    );
     string[][] memory requirements = condition.requirements;
 
     for (
@@ -179,23 +151,46 @@ contract Allowlist {
       string memory requirementType = requirement[0];
       string memory requirementValidationMethod = requirement[1];
       string memory methodSignature;
-      if (Strings.stringsEqual(requirementType, "target")) {
+      string memory paramType;
+      bool requirementTypeIsTarget = Strings.stringsEqual(
+        requirementType,
+        "target"
+      );
+      bool requirementTypeIsParam = Strings.stringsEqual(
+        requirementType,
+        "param"
+      );
+      if (requirementTypeIsTarget) {
+        require(
+          requirement.length == 2,
+          "Requirement length must be equal to 2"
+        );
         methodSignature = string(
           abi.encodePacked(requirementValidationMethod, "(address)")
         );
-      } else if (Strings.stringsEqual(requirementType, "param")) {
+      } else if (requirementTypeIsParam) {
+        require(
+          requirement.length == 3,
+          "Requirement length must be equal to 3"
+        );
         uint256 paramIdx = Strings.atoi(requirement[2], 10);
         require(
           paramIdx <= condition.paramTypes.length - 1,
           "Requirement parameter index is out of range"
         );
-        string memory paramType = condition.paramTypes[paramIdx];
+        paramType = condition.paramTypes[paramIdx];
         methodSignature = string(
           abi.encodePacked(requirementValidationMethod, "(", paramType, ")")
         );
       } else {
         revert("Unsupported requirement type");
       }
+
+      address implementationAddress = condition.implementationAddress;
+      require(
+        implementationAddress != address(0),
+        "Implementation address is not set"
+      );
 
       bool implementsInterface = Introspection.implementsMethodSignature(
         implementationAddress,

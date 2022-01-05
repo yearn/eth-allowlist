@@ -78,11 +78,6 @@ contract AllowlistFactory {
     address allowListAddress = allowlistAddressByOriginName[originName];
     IAllowlist allowList = IAllowlist(allowListAddress);
 
-    address implementationAddress = allowList.implementationAddress();
-    if (implementationAddress == address(0)) {
-      revert("Protocol implementation address is not set");
-    }
-
     uint256 conditionsLength = allowList.conditionsLength();
     if (conditionsLength == 0) {
       revert("Must have at least one condition to complete registration");
@@ -189,11 +184,6 @@ contract AllowlistFactory {
     Allowlist.Condition memory condition,
     bytes calldata data
   ) public view returns (bool) {
-    require(
-      requirement.length > 2,
-      "Not enough arguments in requirement (missing param index)"
-    );
-    // string memory requirementValidationMethod = ;
     uint256 paramIdx = Strings.atoi(requirement[2], 10);
     string memory paramType = condition.paramTypes[paramIdx];
     bytes memory paramCalldata = AbiDecoder.getParamFromCalldata(
@@ -221,7 +211,6 @@ contract AllowlistFactory {
 
   /**
    * @notice Test a target address and calldata against a specific condition and implementation
-   * @param implementationAddress The protocol specific validation implementation address
    * @param condition The condition to test
    * @param targetAddress Target address of the original method call
    * @param data Calldata of the original methodcall
@@ -232,12 +221,12 @@ contract AllowlistFactory {
           - Param check (to make sure the specified param is valid)
    */
   function testCondition(
-    address implementationAddress,
     Allowlist.Condition memory condition,
     address targetAddress,
     bytes calldata data
   ) public view returns (bool) {
     string[][] memory requirements = condition.requirements;
+    address implementationAddress = condition.implementationAddress;
     for (
       uint256 requirementIdx;
       requirementIdx < requirements.length;
@@ -288,20 +277,13 @@ contract AllowlistFactory {
       originName
     );
     address allowlistAddress = allowlistAddressByOriginName[originName];
-    address implementationAddress = IAllowlist(allowlistAddress)
-      .implementationAddress();
     for (
       uint256 conditionIdx;
       conditionIdx < _conditions.length;
       conditionIdx++
     ) {
       Allowlist.Condition memory condition = _conditions[conditionIdx];
-      bool conditionPassed = testCondition(
-        implementationAddress,
-        condition,
-        targetAddress,
-        data
-      );
+      bool conditionPassed = testCondition(condition, targetAddress, data);
       if (conditionPassed) {
         return true;
       }
