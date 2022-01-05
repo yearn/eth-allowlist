@@ -38,7 +38,7 @@ library Introspection {
   }
 
   function implementsInterface(address _address, string[] memory _interface)
-    external
+    public
     view
     returns (bool)
   {

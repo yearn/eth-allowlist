@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.2;
-import "./libraries/AbiDecoder.sol";
 import "./libraries/Strings.sol";
+import "./libraries/AbiDecoder.sol";
 import "./libraries/EnsHelper.sol";
 import "./Allowlist.sol";
 

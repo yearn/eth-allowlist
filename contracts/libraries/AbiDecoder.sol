@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.11;
+import "./Strings.sol";
 
 library AbiDecoder {
   /**
@@ -34,12 +34,12 @@ library AbiDecoder {
       data[paramsStartIdx + paramOffset:paramsStartIdx + paramOffset + 0x20]
     );
 
-    bool paramTypeIsStringOrBytes = stringsEqual(paramType, "bytes") ||
-      stringsEqual(paramType, "string");
-    bool paramTypeIsStringArrayOrBytesArray = stringsEqual(
+    bool paramTypeIsStringOrBytes = Strings.stringsEqual(paramType, "bytes") ||
+      Strings.stringsEqual(paramType, "string");
+    bool paramTypeIsStringArrayOrBytesArray = Strings.stringsEqual(
       paramType,
       "bytes[]"
-    ) || stringsEqual(paramType, "string[]");
+    ) || Strings.stringsEqual(paramType, "string[]");
     bool _paramTypeIsArray = paramTypeIsArray(paramType);
 
     uint256 paramStartIdx = uint256(bytes32(paramDescriptorValue)) + 0x04;
@@ -134,23 +134,6 @@ library AbiDecoder {
       );
     }
     return dataToAdd;
-  }
-
-  /**
-   * @notice Check to see if two strings are exactly equal
-   */
-  function stringsEqual(string memory input1, string memory input2)
-    internal
-    pure
-    returns (bool)
-  {
-    bytes32 input1Bytes32;
-    bytes32 input2Bytes32;
-    assembly {
-      input1Bytes32 := mload(add(input1, 32))
-      input2Bytes32 := mload(add(input2, 32))
-    }
-    return input1Bytes32 == input2Bytes32;
   }
 
   /**

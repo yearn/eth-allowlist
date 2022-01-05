@@ -14,12 +14,12 @@ def rando(accounts):
     yield accounts[1]
 
 @pytest.fixture(autouse=True)
-def strings(Strings, owner):
-    return Strings.deploy({"from": owner})
+def abiDecoder(strings, AbiDecoder, owner):
+    return AbiDecoder.deploy({"from": owner})
     
 @pytest.fixture(autouse=True)
-def abiDecoder(AbiDecoder, owner):
-    return AbiDecoder.deploy({"from": owner})
+def strings(Strings, owner):
+    return Strings.deploy({"from": owner})
     
 @pytest.fixture(autouse=True)
 def introspection(Introspection, owner):

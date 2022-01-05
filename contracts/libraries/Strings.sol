@@ -9,7 +9,7 @@ library Strings {
    * @param needle The string to search for
    */
   function stringStartsWith(string memory haystack, string memory needle)
-    internal
+    public
     pure
     returns (bool)
   {
@@ -23,7 +23,7 @@ library Strings {
    * @return Returns -1 if no match is found, otherwise returns the index of the match
    */
   function indexOfStringInString(string memory needle, string memory haystack)
-    internal
+    public
     pure
     returns (int256)
   {
