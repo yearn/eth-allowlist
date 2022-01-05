@@ -17,6 +17,8 @@ interface IAllowlist {
 
   function conditionsLength() external view returns (uint256);
 
+  function initialize(string memory) external;
+
   function conditionsList()
     external
     view
@@ -32,9 +34,14 @@ contract AllowlistFactory {
   /**
    * @notice Protocol registration
    */
+  address private allowlistTemplateAddress;
   string[] public registeredProtocols; // Array of all protocols which have successfully completed registration
   mapping(string => bool) public registeredProtocol; // Determine whether or not a specific protocol is registered
   mapping(string => address) public allowlistAddressByOriginName; // Address of protocol specific allowlist
+
+  constructor(address _allowlistTemplateAddress) {
+    allowlistTemplateAddress = _allowlistTemplateAddress;
+  }
 
   /**
    * @notice Determine protocol onwer address given an origin name
@@ -63,8 +70,29 @@ contract AllowlistFactory {
       revert("Only protocol owners can register protocols");
     }
 
-    address allowlistAddress = address(new Allowlist(originName));
+    address allowlistAddress = cloneAllowlist();
+    IAllowlist(allowlistAddress).initialize(originName);
     allowlistAddressByOriginName[originName] = allowlistAddress;
+  }
+
+  /**
+   * @notice Clones the allowlist using EIP-1167 template during new protocol registration
+   */
+  function cloneAllowlist() internal returns (address allowlistAddress) {
+    bytes20 templateAddress = bytes20(allowlistTemplateAddress);
+    assembly {
+      let clone := mload(0x40)
+      mstore(
+        clone,
+        0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
+      )
+      mstore(add(clone, 0x14), templateAddress)
+      mstore(
+        add(clone, 0x28),
+        0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
+      )
+      allowlistAddress := create(0, clone, 0x37)
+    }
   }
 
   /**

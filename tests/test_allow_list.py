@@ -9,8 +9,9 @@ yfi_vault_address = "0xE14d13d8B3b85aF791b2AADD661cDBd5E6097Db1"
 not_vault_address = "0x83d95e0D5f402511dB06817Aff3f9eA88224B030"
 
 @pytest.fixture
-def allowlistFactory(AllowlistFactory, owner):
-    return AllowlistFactory.deploy({"from": owner})
+def allowlistFactory(AllowlistFactory, Allowlist, owner, rando):
+    allowlist = Allowlist.deploy({"from": rando})
+    return AllowlistFactory.deploy(allowlist, {"from": owner})
     
 @pytest.fixture
 def allowlist(allowlistFactory, Allowlist, protocol_owner_address):

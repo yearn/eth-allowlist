@@ -31,11 +31,16 @@ contract Allowlist {
 
   Condition[] public conditions; // Array of conditions per protocol (managed by protocol owner)
   string public protocolOriginName; // Domain name of protocol (ie. "yearn.finance")
-  address public immutable rootAllowlistAddress; // Address of root allowlist (parent/factory)
+  address public rootAllowlistAddress; // Address of root allowlist (parent/factory)
 
-  //   address public implementationAddress; // Upgradable address of protocol specific validation method implementation
-
-  constructor(string memory _protocolOriginName) {
+  /**
+   * Initialize the contract (this will only be called by proxy)
+   */
+  function initialize(string memory _protocolOriginName) public {
+    require(
+      rootAllowlistAddress == address(0),
+      "Contract is already initialized"
+    );
     rootAllowlistAddress = msg.sender;
     protocolOriginName = _protocolOriginName;
   }
