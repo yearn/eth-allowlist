@@ -108,9 +108,10 @@ contract Allowlist {
   }
 
   function deleteAllConditions() public onlyOwner {
+    uint256 conditionsLength = conditions.length;
     for (
       uint256 conditionIdx;
-      conditionIdx < conditions.length;
+      conditionIdx < conditionsLength;
       conditionIdx++
     ) {
       conditions.pop();
