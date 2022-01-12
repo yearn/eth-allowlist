@@ -7,7 +7,7 @@ def owner(accounts):
 
 @pytest.fixture
 def protocol_owner_address():
-    yield web3.ens.resolve("ychad.eth")
+    yield web3.ens.resolve("web.ychad.eth")
 
 @pytest.fixture
 def rando(accounts):
