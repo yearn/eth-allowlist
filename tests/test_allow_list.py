@@ -1,12 +1,15 @@
 from typing import Protocol
 import pytest
 import brownie
-from brownie import chain, ZERO_ADDRESS
+from brownie import ZERO_ADDRESS, Contract
 
 origin_name = "yearn.finance"
 usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 yfi_vault_address = "0xE14d13d8B3b85aF791b2AADD661cDBd5E6097Db1"
+yfi_address = "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e"
 not_vault_address = "0x83d95e0D5f402511dB06817Aff3f9eA88224B030"
+
+MAX_UINT256 = 2**256-1
 
 @pytest.fixture
 def allowlistFactory(AllowlistFactory, Allowlist, owner, rando):
@@ -49,6 +52,7 @@ def test_allowlist_factory_finish_registration(allowlistFactory, implementation_
     
     # Owners can add valid conditions
     condition = (
+        "Description",
         "approve",
         ["address", "uint256"],
         [
@@ -61,6 +65,7 @@ def test_allowlist_factory_finish_registration(allowlistFactory, implementation_
     
     # Cannot finish registration if implementation is invalid
     condition_invalid = (
+        "Description",
         "approve",
         ["address", "uint256"],
         [
@@ -93,6 +98,7 @@ def test_protocol_allowlist_owner_address(allowlist, protocol_owner_address):
 def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_address, rando):
     # Only owner can add a condition
     condition_valid_0 = (
+        "Description",
         "approve",
         ["address", "uint256"],
         [
@@ -102,6 +108,7 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
         implementation_address
     )
     condition_valid_1 = (
+        "Description",
         "deposit",
         ["uint256"],
         [
@@ -110,6 +117,7 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
         implementation_address
     )
     condition_invalid_implementation = (
+        "Description",
         "deposit",
         ["uint256"],
         [
@@ -142,6 +150,7 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
 
     # Adding conditions with invalid param index does not work
     condition_with_invalid_param_idx = (
+        "Description",
         "approve",
         ["address", "uint256"],
         [
@@ -204,6 +213,7 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
 def test_allowlist_factory_test_conditions(allowlist, implementation_address, allowlistFactory, YearnAllowlistImplementation, protocol_owner_address, rando):
     # Set up protocol allowlist
     condition = (
+        "Description",
         "approve",
         ["address", "uint256"],
         [
@@ -219,30 +229,24 @@ def test_allowlist_factory_test_conditions(allowlist, implementation_address, al
     conditions = allowlistFactory.conditionsByOriginName(origin_name)
     assert len(conditions) > 0
     
-    # Test valid calldata - usdc.approve(vault_address, UINT256_MAX)
-    data = "0x095ea7b3" # approve(address,uint256)
-    data += "000000000000000000000000" + yfi_vault_address[2:]
-    data += "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-    allowed = allowlistFactory.validateCalldata(origin_name, usdc_address, data)
+    yfi = Contract(yfi_address)
+
+    # Test valid calldata - token.approve(vault_address, UINT256_MAX)
+    data = yfi.approve.encode_input(yfi_vault_address, MAX_UINT256)
+    allowed = allowlistFactory.validateCalldata(origin_name, yfi, data)
     assert allowed == True
     
-    # Test invalid param - usdc.approve(not_vault_address, UINT256_MAX)
-    data = "0x095ea7b3" # approve(address,uint256)
-    data += "000000000000000000000000" + not_vault_address[2:]
-    data += "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-    allowed = allowlistFactory.validateCalldata(origin_name, usdc_address, data)
+    # Test invalid param - token.approve(not_vault_address, UINT256_MAX)
+    data = yfi.approve.encode_input(not_vault_address, MAX_UINT256)
+    allowed = allowlistFactory.validateCalldata(origin_name, yfi, data)
     assert allowed == False
     
-    # Test invalid target - vault_address.approve(vault_address, UINT256_MAX)
-    data = "0x095ea7b3" # approve(address,uint256)
-    data += "000000000000000000000000" + yfi_vault_address[2:]
-    data += "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    # Test invalid target - random_contract.approve(vault_address, UINT256_MAX)
+    data = yfi.approve.encode_input(yfi_vault_address, MAX_UINT256)
     allowed = allowlistFactory.validateCalldata(origin_name, yfi_vault_address, data)
     assert allowed == False
     
-    # Test invalid method - usdc.invalid(vault_address, UINT256_MAX)
-    data = "0xd5bd3522" # invalid(address,uint256)
-    data += "000000000000000000000000" + yfi_vault_address[2:]
-    data += "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-    allowed = allowlistFactory.validateCalldata(origin_name, usdc_address, data)
+    # Test invalid method - token.decimals()
+    data = yfi.decimals.encode_input()
+    allowed = allowlistFactory.validateCalldata(origin_name, yfi, data)
     assert allowed == False

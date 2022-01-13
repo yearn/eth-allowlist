@@ -2,6 +2,7 @@
 pragma solidity ^0.8.2;
 import "./libraries/Strings.sol";
 import "./libraries/Introspection.sol";
+import "./libraries/Quicksort.sol";
 
 /**
  * Interfaces
@@ -15,6 +16,7 @@ interface IAllowlistFactory {
 
 contract Allowlist {
   /**
+   * description: Description of the condition
    * methodName: Name of the method to validate (ie. "approve")
    * paramTypes: Param types of the method to validate (ie. ["address", "uint256"])
    * requirements: Array of requirements, where a requirement is as follows:
@@ -23,6 +25,7 @@ contract Allowlist {
    *    Element 2: Index of param to test as a string. Only applicable where requirement type is "param" (ie. "0")
    */
   struct Condition {
+    string description;
     string methodName;
     string[] paramTypes;
     string[][] requirements;
@@ -107,11 +110,26 @@ contract Allowlist {
     conditions.pop();
   }
 
-  function deleteAllConditions() public onlyOwner {
-    uint256 conditionsLength = conditions.length;
+  function deleteConditions(uint256[] memory conditionsIdxes) public onlyOwner {
+    // Reverse sort condition indexes
+    uint256[] memory conditionIndexesDescending = Quicksort.sort(
+      conditionsIdxes,
+      true
+    );
     for (
       uint256 conditionIdx;
-      conditionIdx < conditionsLength;
+      conditionIdx < conditionIndexesDescending.length;
+      conditionIdx++
+    ) {
+      deleteCondition(conditionIndexesDescending[conditionIdx]);
+    }
+  }
+
+  function deleteAllConditions() public onlyOwner {
+    uint256 _conditionsLength = conditions.length;
+    for (
+      uint256 conditionIdx;
+      conditionIdx < _conditionsLength;
       conditionIdx++
     ) {
       conditions.pop();

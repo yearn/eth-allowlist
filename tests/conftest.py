@@ -20,6 +20,10 @@ def abiDecoder(strings, AbiDecoder, owner):
 @pytest.fixture(autouse=True)
 def strings(Strings, owner):
     return Strings.deploy({"from": owner})
+
+@pytest.fixture(autouse=True)
+def quicksort(Quicksort, owner):
+    return Quicksort.deploy({"from": owner})
     
 @pytest.fixture(autouse=True)
 def introspection(Introspection, owner):
