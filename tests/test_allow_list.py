@@ -52,7 +52,7 @@ def test_allowlist_factory_finish_registration(allowlistFactory, implementation_
     
     # Owners can add valid conditions
     condition = (
-        "Description",
+        "TOKEN_APPROVE_VAULT",
         "approve",
         ["address", "uint256"],
         [
@@ -65,7 +65,7 @@ def test_allowlist_factory_finish_registration(allowlistFactory, implementation_
     
     # Cannot finish registration if implementation is invalid
     condition_invalid = (
-        "Description",
+        "TOKEN_APPROVE_INVALID",
         "approve",
         ["address", "uint256"],
         [
@@ -79,7 +79,7 @@ def test_allowlist_factory_finish_registration(allowlistFactory, implementation_
         allowlistFactory.finishProtocolRegistration(origin_name, {"from": protocol_owner_address})
     
     # Protocols with at least one valid condition must be allowed to finish registration
-    allowlist.deleteCondition(1, {"from": protocol_owner_address}) # Remove invalid condition
+    allowlist.deleteCondition("TOKEN_APPROVE_INVALID", {"from": protocol_owner_address}) # Remove invalid condition
     registered_protocols = allowlistFactory.registeredProtocolsList()
     assert len(registered_protocols) == 0
     assert allowlistFactory.registeredProtocol(origin_name) == False
@@ -98,7 +98,7 @@ def test_protocol_allowlist_owner_address(allowlist, protocol_owner_address):
 def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_address, rando):
     # Only owner can add a condition
     condition_valid_0 = (
-        "Description",
+        "TOKEN_APPROVE_VAULT",
         "approve",
         ["address", "uint256"],
         [
@@ -108,7 +108,7 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
         implementation_address
     )
     condition_valid_1 = (
-        "Description",
+        "VAULT_DEPOSIT",
         "deposit",
         ["uint256"],
         [
@@ -116,8 +116,17 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
         ],
         implementation_address
     )
+    condition_valid_2 = (
+        "VAULT_DEPOSIT",
+        "deposit",
+        ["uint256"],
+        [
+            ["target", "isVaultToken"]
+        ],
+        implementation_address
+    )
     condition_invalid_implementation = (
-        "Description",
+        "INVALID_DEPOSIT",
         "deposit",
         ["uint256"],
         [
@@ -131,26 +140,20 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
     # Add a valid condition
     allowlist.addCondition(condition_valid_0, {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 1
-    allowlist.addCondition(condition_valid_0, {"from": protocol_owner_address})
+    allowlist.addCondition(condition_valid_1, {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 2
-    
-    # Must be able to view conditions by index
-    allowlist.conditions(0)
-    allowlist.conditions(1)
     
     # Only owners can delete conditions
     with brownie.reverts():
-        allowlist.deleteCondition(1, {"from": rando})
+        allowlist.deleteCondition("INVALID_DEPOSIT", {"from": rando})
 
     # Deleting conditions updates conditions list
-    allowlist.deleteCondition(1, {"from": protocol_owner_address})
-    with brownie.reverts():
-        allowlist.conditions(1)
+    allowlist.deleteCondition("VAULT_DEPOSIT", {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 1
 
     # Adding conditions with invalid param index does not work
     condition_with_invalid_param_idx = (
-        "Description",
+        "TOKEN_APPROVE_VAULT_INVALID",
         "approve",
         ["address", "uint256"],
         [
@@ -166,8 +169,8 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
     with brownie.reverts():
         allowlist.addCondition(condition_invalid_implementation, {"from": protocol_owner_address})
         
-    # Make sure implementation and conditions are still valid
-    assert allowlist.implementationValid() == True
+    # Make sure all conditions are still valid
+    assert allowlist.conditionsValid() == True
     allowlist.validateConditions()
 
     # Only owners can add conditions without validation
@@ -175,14 +178,14 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
         allowlist.addConditionWithoutValidation(condition_invalid_implementation, {"from": rando})
     allowlist.addConditionWithoutValidation(condition_invalid_implementation, {"from": protocol_owner_address})
     
-    # Implementation must now be invalid
-    assert allowlist.implementationValid() == False
+    # All conditions must now be invalid
+    assert allowlist.conditionsValid() == False
     with brownie.reverts():
         allowlist.validateConditions()
     
     # Delete the invalid condition and check validity again
-    allowlist.deleteCondition(1, {"from": protocol_owner_address})
-    assert allowlist.implementationValid() == True
+    allowlist.deleteCondition("INVALID_DEPOSIT", {"from": protocol_owner_address})
+    assert allowlist.conditionsValid() == True
     allowlist.validateConditions()
     
     # Only owner can delete all conditions
@@ -200,20 +203,20 @@ def test_allowlist_conditions(allowlist, implementation_address, protocol_owner_
     
     # Only owners can update conditions
     with brownie.reverts():
-        allowlist.updateCondition(0, condition_valid_1, {"from": rando})
-    allowlist.updateCondition(0, condition_valid_1, {"from": protocol_owner_address})
+        allowlist.updateCondition("VAULT_DEPOSIT", condition_valid_1, {"from": rando})
+    allowlist.updateCondition("VAULT_DEPOSIT", condition_valid_2, {"from": protocol_owner_address})
     assert allowlist.conditionsLength() == 2
-    assert allowlist.conditionsList()[0] == condition_valid_1
+    assert allowlist.conditionsList()[1] == condition_valid_2
     
     # Listing conditions must return data
     list = allowlist.conditionsList()
     assert len(list) == 2
-    assert list[0] == condition_valid_1
+    assert list[0] == condition_valid_0
     
 def test_allowlist_factory_test_conditions(allowlist, implementation_address, allowlistFactory, YearnAllowlistImplementation, protocol_owner_address, rando):
     # Set up protocol allowlist
     condition = (
-        "Description",
+        "TOKEN_APPROVE_VAULT",
         "approve",
         ["address", "uint256"],
         [

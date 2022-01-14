@@ -16,7 +16,7 @@ interface IAllowlistFactory {
 
 contract Allowlist {
   /**
-   * description: Description of the condition
+   * id: ID of the condition (must be unique and contain no spaces.. ie. "VAULT_DEPOSIT")
    * methodName: Name of the method to validate (ie. "approve")
    * paramTypes: Param types of the method to validate (ie. ["address", "uint256"])
    * requirements: Array of requirements, where a requirement is as follows:
@@ -25,19 +25,22 @@ contract Allowlist {
    *    Element 2: Index of param to test as a string. Only applicable where requirement type is "param" (ie. "0")
    */
   struct Condition {
-    string description;
+    string id;
     string methodName;
     string[] paramTypes;
     string[][] requirements;
     address implementationAddress;
   }
 
-  Condition[] public conditions; // Array of conditions per protocol (managed by protocol owner)
+  string[] public conditionsIds;
+  mapping(string => Condition) public conditionById;
+
   string public protocolOriginName; // Domain name of protocol (ie. "yearn.finance")
   address public rootAllowlistAddress; // Address of root allowlist (parent/factory)
 
   /**
-   * Initialize the contract (this will only be called by proxy)
+   * @notice Initialize the contract (this will only be called by proxy)
+   * @param _protocolOriginName The domain name for the protocol (ie. "yearn.finance")
    */
   function initialize(string memory _protocolOriginName) public {
     require(
@@ -59,19 +62,54 @@ contract Allowlist {
     _;
   }
 
-  function ownerAddress() public view returns (address protcolOwnerAddress) {
-    protcolOwnerAddress = IAllowlistFactory(rootAllowlistAddress)
+  /**
+   * @notice Fetch the controlling address for the protocol
+   * @return protocolOwnerAddress The address of protocol owner
+   */
+  function ownerAddress() public view returns (address protocolOwnerAddress) {
+    protocolOwnerAddress = IAllowlistFactory(rootAllowlistAddress)
       .protocolOwnerAddressByOriginName(protocolOriginName);
   }
 
   /*******************************************************
    *                   Condition CRUD Logic
    *******************************************************/
-  function addCondition(Condition memory condition) public onlyOwner {
-    validateCondition(condition);
-    conditions.push(condition);
+
+  /**
+   * @dev Internal method for adding a condition
+   * @dev Condition ID validation happens here (IDs must be unqiue and not have spaces)
+   * @dev Actual condition validation does not happen here (it happens in "validateCondition(condition)")
+   */
+  function _addCondition(Condition memory condition) internal {
+    // Condition ID must be unique
+    bool conditionExists = !Strings.stringsEqual(
+      conditionById[condition.id].id,
+      ""
+    );
+    require(conditionExists == false, "Condition with this ID already exists");
+
+    // Condition ID cannot have spaces
+    bool idHasSpaces = Strings.indexOfStringInString(" ", condition.id) != -1;
+    require(idHasSpaces == false, "Condition IDs cannot have spaces");
+
+    // Add condition
+    conditionById[condition.id] = condition;
+    conditionsIds.push(condition.id);
   }
 
+  /**
+   * @notice Add a condition with validation
+   * @param condition The condition to add
+   */
+  function addCondition(Condition memory condition) public onlyOwner {
+    validateCondition(condition);
+    _addCondition(condition);
+  }
+
+  /**
+   * @notice Add multiple conditions with validation
+   * @param _conditions The conditions to add
+   */
   function addConditions(Condition[] memory _conditions) public onlyOwner {
     for (
       uint256 conditionIdx;
@@ -83,13 +121,21 @@ contract Allowlist {
     }
   }
 
+  /**
+   * @notice Add a condition without validation
+   * @param condition The condition to add
+   */
   function addConditionWithoutValidation(Condition memory condition)
     public
     onlyOwner
   {
-    conditions.push(condition);
+    _addCondition(condition);
   }
 
+  /**
+   * @notice Add multiple conditions without validation
+   * @param _conditions The conditions to add
+   */
   function addConditionsWithoutValidation(Condition[] memory _conditions)
     public
     onlyOwner
@@ -100,69 +146,115 @@ contract Allowlist {
       conditionIdx++
     ) {
       Condition memory condition = _conditions[conditionIdx];
-      addCondition(condition);
+      addConditionWithoutValidation(condition);
     }
   }
 
-  function deleteCondition(uint256 conditionIdx) public onlyOwner {
-    Condition memory lastCondition = conditions[conditions.length - 1];
-    conditions[conditionIdx] = lastCondition;
-    conditions.pop();
-  }
-
-  function deleteConditions(uint256[] memory conditionsIdxes) public onlyOwner {
-    // Reverse sort condition indexes
-    uint256[] memory conditionIndexesDescending = Quicksort.sort(
-      conditionsIdxes,
-      true
-    );
+  /**
+   * @notice Delete a condition given an ID
+   * @param conditionId The ID of the condition to delete
+   */
+  function deleteCondition(string memory conditionId) public onlyOwner {
+    string memory lastConditionId = conditionsIds[conditionsIds.length - 1];
     for (
       uint256 conditionIdx;
-      conditionIdx < conditionIndexesDescending.length;
+      conditionIdx < conditionsIds.length;
       conditionIdx++
     ) {
-      deleteCondition(conditionIndexesDescending[conditionIdx]);
+      string memory currentConditionId = conditionsIds[conditionIdx];
+      if (Strings.stringsEqual(currentConditionId, conditionId)) {
+        conditionsIds[conditionIdx] = lastConditionId;
+        conditionsIds.pop();
+        delete conditionById[conditionId];
+        return;
+      }
+    }
+    revert("Cannot find condition with that ID");
+  }
+
+  /**
+   * @notice Delete multiple conditions given a list of IDs
+   * @param _conditionsIds A list of condition IDs to delete
+   */
+  function deleteConditions(string[] memory _conditionsIds) public onlyOwner {
+    for (
+      uint256 conditionIdx;
+      conditionIdx < _conditionsIds.length;
+      conditionIdx++
+    ) {
+      string memory conditionId = _conditionsIds[conditionIdx];
+      deleteCondition(conditionId);
     }
   }
 
+  /**
+   * @notice Delete every condition
+   */
   function deleteAllConditions() public onlyOwner {
-    uint256 _conditionsLength = conditions.length;
+    uint256 _conditionsLength = conditionsIds.length;
     for (
       uint256 conditionIdx;
       conditionIdx < _conditionsLength;
       conditionIdx++
     ) {
-      conditions.pop();
+      string memory conditionId = conditionsIds[conditionIdx];
+      deleteCondition(conditionId);
     }
   }
 
-  function updateCondition(uint256 conditionIdx, Condition memory condition)
-    public
-    onlyOwner
-  {
-    deleteCondition(conditionIdx);
+  /**
+   * @notice Update a condition
+   * @param conditionId The ID of the condition to update
+   * @param condition The new condition
+   */
+  function updateCondition(
+    string memory conditionId,
+    Condition memory condition
+  ) public onlyOwner {
+    deleteCondition(conditionId);
     addCondition(condition);
   }
 
-  function conditionsList() public view returns (Condition[] memory test) {
-    Condition[] memory _conditions = new Condition[](conditions.length);
+  /**
+   * @notice Fetch a list of conditions
+   * @return Returns all conditions
+   */
+  function conditionsList() public view returns (Condition[] memory) {
+    Condition[] memory _conditions = new Condition[](conditionsIds.length);
     for (
       uint256 conditionIdx;
-      conditionIdx < conditions.length;
+      conditionIdx < conditionsIds.length;
       conditionIdx++
     ) {
-      _conditions[conditionIdx] = conditions[conditionIdx];
+      _conditions[conditionIdx] = conditionById[conditionsIds[conditionIdx]];
     }
     return _conditions;
   }
 
+  /**
+   * @notice Fetch a list of all condition IDs
+   * @return An array of condition IDs
+   */
+  function conditionsIdsList() public view returns (string[] memory) {
+    return conditionsIds;
+  }
+
+  /**
+   * @notice Fetch the total number of conditions in this contract
+   * @return Returns length of conditionIds
+   */
   function conditionsLength() public view returns (uint256) {
-    return conditions.length;
+    return conditionsIds.length;
   }
 
   /*******************************************************
    *                Condition Validation Logic
    *******************************************************/
+  /**
+   * @notice Validate the integrity of a condition
+   * @dev For example: are the arguments of the condition valid, and do they point to a valid implementation?
+   * @param condition The condition to validate
+   */
   function validateCondition(Condition memory condition) public view {
     string[][] memory requirements = condition.requirements;
 
@@ -227,18 +319,27 @@ contract Allowlist {
     }
   }
 
+  /**
+   * @notice Validate all conditions
+   * @dev Reverts if some conditions are invalid
+   */
   function validateConditions() public view {
     for (
       uint256 conditionIdx;
-      conditionIdx < conditions.length;
+      conditionIdx < conditionsIds.length;
       conditionIdx++
     ) {
-      Condition memory condition = conditions[conditionIdx];
+      string memory conditionId = conditionsIds[conditionIdx];
+      Condition memory condition = conditionById[conditionId];
       validateCondition(condition);
     }
   }
 
-  function implementationValid() public view returns (bool) {
+  /**
+   * @notice Determine whether or not all conditions are valid
+   * @return Return true if all conditions are valid, false if not
+   */
+  function conditionsValid() public view returns (bool) {
     (bool success, ) = address(this).staticcall(
       abi.encodeWithSignature("validateConditions()")
     );

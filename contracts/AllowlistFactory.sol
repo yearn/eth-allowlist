@@ -24,7 +24,7 @@ interface IAllowlist {
     view
     returns (Allowlist.Condition[] memory);
 
-  function implementationValid() external view returns (bool);
+  function conditionsValid() external view returns (bool);
 }
 
 /*******************************************************
@@ -111,8 +111,8 @@ contract AllowlistFactory {
       revert("Must have at least one condition to complete registration");
     }
 
-    bool implementationValid = allowList.implementationValid();
-    if (!implementationValid) {
+    bool conditionsValid = allowList.conditionsValid();
+    if (!conditionsValid) {
       revert("Protocol implementation does not satisfy all conditions");
     }
 
