@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.11;
 
+/**
+ * @title ENS Helper utility
+ * @author yearn.finance
+ */
+
 interface IEnsRegistry {
   function resolver(bytes32 node) external view returns (address);
 

@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.11;
+pragma solidity 0.8.11;
 import "./Strings.sol";
+
+/**
+ * @title Decode raw calldata and params
+ * @author yearn.finance
+ */
 
 library AbiDecoder {
   /**
    * @notice Extract all params from calldata given a list of param types and raw calldata bytes
+   * @param paramTypes An array of param types (ie. ["address", "bytes[]", "uint256"])
+   * @param data Raw calldata (including 4byte method selector)
+   * @return Returns an array of input param data
    */
   function getParamsFromCalldata(
     string[] memory paramTypes,
@@ -22,6 +30,12 @@ library AbiDecoder {
 
   /**
    * @notice Extract param bytes given calldata, param type and param index
+   * @param data Raw calldata (including 4byte method selector)
+   * @param paramIdx The position of the param data to fetch (0 will fetch the first param)
+   * @return Returns the raw data of the param at paramIdx index
+   * @dev If the type is "bytes", "bytes[]", "string" or "string[]" the offset byte
+   *      will be set to 0x20. The param is isolated in such a way that it can be passed as an
+   *      input to another method selector using call or staticcall.
    */
   function getParamFromCalldata(
     bytes calldata data,
@@ -56,6 +70,9 @@ library AbiDecoder {
 
   /**
    * @notice Extract param for "bytes" and "string" types given calldata and a param start index
+   * @param data Raw calldata (including 4byte method selector)
+   * @param paramStartIdx The offset the param starts at
+   * @return Returns the raw data of the param at paramIdx index
    */
   function extractParamForBytesType(bytes calldata data, uint256 paramStartIdx)
     public
@@ -82,6 +99,9 @@ library AbiDecoder {
 
   /**
    * @notice Extract param for "bytes[]" and "string[]" types given calldata and a param start index
+   * @param data Raw calldata (including 4byte method selector)
+   * @param paramStartIdx The offset the param starts at
+   * @return Returns the raw data of the param at paramIdx index
    */
   function extractParamForBytesArrayType(
     bytes calldata data,
@@ -114,6 +134,9 @@ library AbiDecoder {
 
   /**
    * @notice Extract param for "*[]" types given calldata and a param start index, assuming each element is 32 bytes
+   * @param data Raw calldata (including 4byte method selector)
+   * @param paramStartIdx The offset the param starts at
+   * @return Returns the raw data of the param at paramIdx index
    */
   function extractParamForSimpleArray(
     bytes calldata data,
@@ -138,6 +161,8 @@ library AbiDecoder {
 
   /**
    * @notice Check to see if the last two characters of a string are "[]"
+   * @param paramType Param type as a string (ie. "uint256", "uint256[]")
+   * @return Returns true if the paramType ends with "[]", false if not
    */
   function paramTypeIsArray(string memory paramType)
     internal

@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.2;
+pragma solidity 0.8.11;
+
+/**
+ * @title Small library for working with strings
+ * @author yearn.finance
+ */
 
 library Strings {
   /**
@@ -16,7 +21,7 @@ library Strings {
   }
 
   /**
-   * @notice Case insensitive string search
+   * @notice Find the index of a string in another string
    * @param needle The string to search for
    * @param haystack The string to search
    * @return Returns -1 if no match is found, otherwise returns the index of the match
@@ -55,73 +60,99 @@ library Strings {
 
   /**
    * @notice Check to see if two strings are exactly equal
+   * @dev Supports strings of arbitrary length
+   * @param input0 First string to compare
+   * @param input1 Second string to compare
+   * @return Returns true if strings are exactly equal, false if not
    */
-  function stringsEqual(string memory input1, string memory input2)
+  function stringsEqual(string memory input0, string memory input1)
     public
     pure
     returns (bool)
   {
+    uint256 input0Length = bytes(input0).length;
     uint256 input1Length = bytes(input1).length;
-    uint256 input2Length = bytes(input2).length;
     uint256 maxLength;
-    if (input1Length > input2Length) {
-      maxLength = input1Length;
+    if (input0Length > input1Length) {
+      maxLength = input0Length;
     } else {
-      maxLength = input2Length;
+      maxLength = input1Length;
     }
     uint256 numberOfRowsToCompare = (maxLength / 32) + 1;
+    bytes32 input0Bytes32;
     bytes32 input1Bytes32;
-    bytes32 input2Bytes32;
     for (uint256 rowIdx; rowIdx < numberOfRowsToCompare; rowIdx++) {
       uint256 offset = 0x20 * (rowIdx + 1);
       assembly {
+        input0Bytes32 := mload(add(input0, offset))
         input1Bytes32 := mload(add(input1, offset))
-        input2Bytes32 := mload(add(input2, offset))
       }
-      if (input1Bytes32 != input2Bytes32) {
+      if (input0Bytes32 != input1Bytes32) {
         return false;
       }
     }
     return true;
   }
 
-  function atoi(string memory a, uint8 base) public pure returns (uint256 i) {
+  /**
+   * @notice Convert ASCII to integer
+   * @param input Integer as a string (ie. "345")
+   * @param base Base to use for the conversion (10 for decimal)
+   * @return output Returns uint256 representation of input string
+   * @dev Based on GemERC721 utility but includes a fix
+   */
+  function atoi(string memory input, uint8 base)
+    public
+    pure
+    returns (uint256 output)
+  {
     require(base == 2 || base == 8 || base == 10 || base == 16);
-    bytes memory buf = bytes(a);
-    for (uint256 p = 0; p < buf.length; p++) {
-      uint8 digit = uint8(buf[p]) - 0x30;
+    bytes memory buf = bytes(input);
+    for (uint256 idx = 0; idx < buf.length; idx++) {
+      uint8 digit = uint8(buf[idx]) - 0x30;
       if (digit > 10) {
         digit -= 7;
       }
       require(digit < base);
-      i *= base;
-      i += digit;
+      output *= base;
+      output += digit;
     }
-    return i;
+    return output;
   }
 
-  function itoa(uint256 i, uint8 base) public pure returns (string memory a) {
+  /**
+   * @notice Convert integer to ASCII
+   * @param input Integer as a string (ie. "345")
+   * @param base Base to use for the conversion (10 for decimal)
+   * @return output Returns string representation of input integer
+   * @dev Based on GemERC721 utility but includes a fix
+   */
+  function itoa(uint256 input, uint8 base)
+    public
+    pure
+    returns (string memory output)
+  {
     require(base == 2 || base == 8 || base == 10 || base == 16);
-    if (i == 0) {
+    if (input == 0) {
       return "0";
     }
     bytes memory buf = new bytes(256);
-    uint256 p = 0;
-    while (i > 0) {
-      uint8 digit = uint8(i % base);
+    uint256 idx = 0;
+    while (input > 0) {
+      uint8 digit = uint8(input % base);
       uint8 ascii = digit + 0x30;
       if (digit > 9) {
         ascii += 7;
       }
-      buf[p++] = bytes1(ascii);
-      i /= base;
+      buf[idx++] = bytes1(ascii);
+      input /= base;
     }
-    uint256 length = p;
-    for (p = 0; p < length / 2; p++) {
-      buf[p] ^= buf[length - 1 - p];
-      buf[length - 1 - p] ^= buf[p];
-      buf[p] ^= buf[length - 1 - p];
+    uint256 length = idx;
+    for (idx = 0; idx < length / 2; idx++) {
+      buf[idx] ^= buf[length - 1 - idx];
+      buf[length - 1 - idx] ^= buf[idx];
+      buf[idx] ^= buf[length - 1 - idx];
     }
-    return string(buf);
+    output = string(buf);
   }
 }
