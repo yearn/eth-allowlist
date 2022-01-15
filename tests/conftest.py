@@ -49,7 +49,7 @@ def ensHelper(EnsHelper, owner):
     return EnsHelper.deploy({"from": owner})
 
 @pytest.fixture(autouse=True)
-def jsonWriter(JsonWriter, owner):
+def json_writer(JsonWriter, owner):
     return JsonWriter.deploy({"from": owner})
     
     

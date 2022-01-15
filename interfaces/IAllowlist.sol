@@ -11,9 +11,16 @@ interface IAllowlist is IOwnable {
     string[][] requirements;
   }
 
+  struct Implementation {
+    string id;
+    address addr;
+  }
+
   function conditionsList() external view returns (Condition[] memory);
 
   function addConditions(Condition[] memory) external;
+
+  function setImplementations(Implementation[] memory) external;
 
   function implementationById(string memory) external view returns (address);
 }

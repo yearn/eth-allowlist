@@ -33,7 +33,7 @@ def test_register_protocol(allowlist_registry, Allowlist, rando, protocol_owner_
     # Starting protocol registration must save the protocol allowlist address
     allowlist_registry.allowlistAddressByOriginName(origin_name) == allowlist.address
     
-def test_reregister_protocol(allowlist_registry, implementation_id, protocol_owner_address, origin_name, rando):
+def test_reregister_protocol(allowlist_registry, implementation_id, protocol_owner_address, origin_name, rando, Allowlist, implementation):
     condition_0 = (
         "CONDITION_0",
         implementation_id,
@@ -52,15 +52,24 @@ def test_reregister_protocol(allowlist_registry, implementation_id, protocol_own
             ["target", "isVaultToken"], 
         ]
     )
-
+    implementations = [(implementation_id, implementation)]
+    conditions = [condition_0, condition_1]
+        
     # Cannot re-register and unregistered protocol
     with brownie.reverts():
-        allowlist_registry.reregisterProtocol(origin_name, [condition_0, condition_1], {"from": protocol_owner_address})
-        
+        allowlist_registry.reregisterProtocol(origin_name, implementations, conditions, {"from": protocol_owner_address})
+    
     # Perform initial protocol registration
-    allowlist_registry.registerProtocol(origin_name, {"from": protocol_owner_address})
+    tx = allowlist_registry.registerProtocol(origin_name, {"from": protocol_owner_address})
+    allowlist = Allowlist.at(tx.new_contracts[0])
+    assert allowlist != ZERO_ADDRESS
+    
+    # Cannot re-register with invalid implementations
+    with brownie.reverts():
+        allowlist_registry.reregisterProtocol(origin_name, [], conditions, {"from": protocol_owner_address})
 
     # Only owners can re-register protocols
     with brownie.reverts():
-        allowlist_registry.reregisterProtocol(origin_name, [condition_0, condition_1], {"from": rando})
-    allowlist_registry.reregisterProtocol(origin_name, [condition_0, condition_1], {"from": protocol_owner_address})
+        allowlist_registry.reregisterProtocol(origin_name, implementations, conditions, {"from": rando})
+    allowlist_registry.reregisterProtocol(origin_name, implementations, conditions, {"from": protocol_owner_address})
+    

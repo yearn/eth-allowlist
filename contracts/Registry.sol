@@ -83,9 +83,13 @@ contract AllowlistRegistry {
    * @notice Allow protocol owners to override and replace existing allowlist
    * @dev This method is destructive and cannot be undone
    * @dev Protocols can only re-register if they have already registered once
+   * @param originName Origin name of the protocol (ie. "yearn.finance")
+   * @param implementations Array of implementations to set
+   * @param conditions Array of conditions to set
    */
   function reregisterProtocol(
     string memory originName,
+    IAllowlist.Implementation[] memory implementations,
     IAllowlist.Condition[] memory conditions
   ) public {
     address protocolOwnerAddress = protocolOwnerAddressByOriginName(originName);
@@ -113,8 +117,11 @@ contract AllowlistRegistry {
     );
     allowlistAddressByOriginName[originName] = allowlistAddress;
 
-    // Add conditions to new allowlist
+    // Set implementations
     IAllowlist allowlist = IAllowlist(allowlistAddress);
+    allowlist.setImplementations(implementations);
+
+    // Add conditions to new allowlist
     allowlist.addConditions(conditions);
     IAllowlist(allowlist).setOwnerAddress(protocolOwnerAddress);
   }

@@ -36,11 +36,6 @@ contract Allowlist is IAllowlist, Ownable {
    *                   Implementation Logic
    *******************************************************/
 
-  struct Implementation {
-    string id;
-    address addr;
-  }
-
   /**
    * @notice Set implementation address for an ID (ie. "VAULT_VALIDATIONS" => 0x...)
    * @param implementationId The unique id of the implementation
