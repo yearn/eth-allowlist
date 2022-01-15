@@ -1,74 +1,111 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.2;
+pragma solidity 0.8.11;
+import "./utilities/Ownable.sol";
 import "./libraries/Strings.sol";
 import "./libraries/Introspection.sol";
-import "./libraries/Quicksort.sol";
+import "./libraries/JsonWriter.sol";
+import "./libraries/CalldataValidation.sol";
 
-/**
- * Interfaces
- */
-interface IAllowlistFactory {
-  function protocolOwnerAddressByOriginName(string memory originName)
-    external
-    view
-    returns (address ownerAddress);
-}
-
-contract Allowlist {
-  /**
-   * id: ID of the condition (must be unique and contain no spaces.. ie. "VAULT_DEPOSIT")
-   * methodName: Name of the method to validate (ie. "approve")
-   * paramTypes: Param types of the method to validate (ie. ["address", "uint256"])
-   * requirements: Array of requirements, where a requirement is as follows:
-   *    Element 0: Requirement type (ie. "target" or "param")
-   *    Element 1: Method name of validation method (ie. "isVaultToken")
-   *    Element 2: Index of param to test as a string. Only applicable where requirement type is "param" (ie. "0")
-   */
-  struct Condition {
-    string id;
-    string methodName;
-    string[] paramTypes;
-    string[][] requirements;
-    address implementationAddress;
-  }
-
-  string[] public conditionsIds;
-  mapping(string => Condition) public conditionById;
-
-  string public protocolOriginName; // Domain name of protocol (ie. "yearn.finance")
-  address public rootAllowlistAddress; // Address of root allowlist (parent/factory)
+/*******************************************************
+ *                   Main Contract Logic
+ *******************************************************/
+contract Allowlist is IAllowlist, Ownable {
+  using JsonWriter for JsonWriter.Json; // Initialize JSON writer
+  string[] public conditionsIds; // Array of condition IDs
+  mapping(string => Condition) public conditionById; // Condition ID to condition mapping
+  string public name; // Domain name of protocol (ie. "yearn.finance")
+  address public allowlistFactoryAddress; // Address of root allowlist (parent/factory)
+  mapping(string => address) public implementationById; // Implementation ID to implementation address mapping
+  string[] public implementationsIds; // Array of implementation IDs
 
   /**
    * @notice Initialize the contract (this will only be called by proxy)
-   * @param _protocolOriginName The domain name for the protocol (ie. "yearn.finance")
+   * @param _name The allowlist name (for the protocols this is domain name: ie. "yearn.finance")
    */
-  function initialize(string memory _protocolOriginName) public {
+  function initialize(string memory _name, address _ownerAddress) public {
     require(
-      rootAllowlistAddress == address(0),
+      allowlistFactoryAddress == address(0),
       "Contract is already initialized"
     );
-    rootAllowlistAddress = msg.sender;
-    protocolOriginName = _protocolOriginName;
+    allowlistFactoryAddress = msg.sender;
+    name = _name;
+    ownerAddress = _ownerAddress;
   }
 
   /*******************************************************
-   *                     Owner logic
+   *                   Implementation Logic
    *******************************************************/
-  modifier onlyOwner() {
-    require(
-      msg.sender == ownerAddress() || msg.sender == address(0),
-      "Caller is not the protocol owner"
-    );
-    _;
+
+  struct Implementation {
+    string id;
+    address addr;
   }
 
   /**
-   * @notice Fetch the controlling address for the protocol
-   * @return protocolOwnerAddress The address of protocol owner
+   * @notice Set implementation address for an ID (ie. "VAULT_VALIDATIONS" => 0x...)
+   * @param implementationId The unique id of the implementation
+   * @param implementationAddress The address of the new implementation
    */
-  function ownerAddress() public view returns (address protocolOwnerAddress) {
-    protocolOwnerAddress = IAllowlistFactory(rootAllowlistAddress)
-      .protocolOwnerAddressByOriginName(protocolOriginName);
+  function setImplementation(
+    string memory implementationId,
+    address implementationAddress
+  ) public onlyOwner {
+    // Add implementation ID to the implementationsIds list if it doesn't exist
+    bool implementationExists = implementationById[implementationId] !=
+      address(0);
+    if (!implementationExists) {
+      implementationsIds.push(implementationId);
+    }
+
+    // Set implementation
+    implementationById[implementationId] = implementationAddress;
+
+    // Validate implementation against existing conditions
+    validateConditions();
+  }
+
+  /**
+   * @notice Set multiple implementations
+   * @param implementations An array of implementation tuples
+   */
+  function setImplementations(Implementation[] memory implementations)
+    public
+    onlyOwner
+  {
+    for (
+      uint256 implementationIdx;
+      implementationIdx < implementations.length;
+      implementationIdx++
+    ) {
+      Implementation memory implementation = implementations[implementationIdx];
+      setImplementation(implementation.id, implementation.addr);
+    }
+  }
+
+  function implementationsIdsList() public view returns (string[] memory) {
+    return implementationsIds;
+  }
+
+  function implementationsList() public view returns (Implementation[] memory) {
+    string[] memory _implementationsIdsList = implementationsIdsList();
+    Implementation[] memory implementations = new Implementation[](
+      _implementationsIdsList.length
+    );
+    for (
+      uint256 implementationIdx;
+      implementationIdx < _implementationsIdsList.length;
+      implementationIdx++
+    ) {
+      string memory implementationId = _implementationsIdsList[
+        implementationIdx
+      ];
+      address implementationAddress = implementationById[implementationId];
+      implementations[implementationIdx] = Implementation({
+        id: implementationId,
+        addr: implementationAddress
+      });
+    }
+    return implementations;
   }
 
   /*******************************************************
@@ -82,11 +119,10 @@ contract Allowlist {
    */
   function _addCondition(Condition memory condition) internal {
     // Condition ID must be unique
-    bool conditionExists = !Strings.stringsEqual(
-      conditionById[condition.id].id,
-      ""
+    require(
+      conditionExists(condition.id) == false,
+      "Condition with this ID already exists"
     );
-    require(conditionExists == false, "Condition with this ID already exists");
 
     // Condition ID cannot have spaces
     bool idHasSpaces = Strings.indexOfStringInString(" ", condition.id) != -1;
@@ -197,21 +233,22 @@ contract Allowlist {
       conditionIdx < _conditionsLength;
       conditionIdx++
     ) {
-      string memory conditionId = conditionsIds[conditionIdx];
+      string memory conditionId = conditionsIds[0];
       deleteCondition(conditionId);
     }
   }
 
   /**
-   * @notice Update a condition
-   * @param conditionId The ID of the condition to update
+   * @notice Update an existing condition
+   * @dev Reads condition.id to determine which condition to update
    * @param condition The new condition
    */
-  function updateCondition(
-    string memory conditionId,
-    Condition memory condition
-  ) public onlyOwner {
-    deleteCondition(conditionId);
+  function updateCondition(Condition memory condition) public onlyOwner {
+    require(
+      conditionExists(condition.id),
+      "Condition with this ID does not exist"
+    );
+    deleteCondition(condition.id);
     addCondition(condition);
   }
 
@@ -232,6 +269,78 @@ contract Allowlist {
   }
 
   /**
+   * @notice Fetch current conditions list as JSON
+   * @return Returns JSON representation of conditions list
+   */
+  function conditionsJson() public view returns (string memory) {
+    Condition[] memory conditions = conditionsList();
+
+    // Start array
+    JsonWriter.Json memory writer;
+    writer = writer.writeStartArray();
+    for (
+      uint256 conditionIdx;
+      conditionIdx < conditions.length;
+      conditionIdx++
+    ) {
+      // Load condition
+      Condition memory condition = conditions[conditionIdx];
+
+      // Start object
+      writer = writer.writeStartObject();
+
+      // ID
+      writer = writer.writeStringProperty("id", condition.id);
+
+      // Implementation ID
+      writer = writer.writeStringProperty(
+        "implementationId",
+        condition.implementationId
+      );
+
+      // Method name
+      writer = writer.writeStringProperty("methodName", condition.methodName);
+
+      // Param types
+      writer = writer.writeStartArray("paramTypes");
+      for (
+        uint256 paramTypeIdx;
+        paramTypeIdx < condition.paramTypes.length;
+        paramTypeIdx++
+      ) {
+        writer = writer.writeStringValue(condition.paramTypes[paramTypeIdx]);
+      }
+      writer = writer.writeEndArray();
+
+      // Requirements
+      writer = writer.writeStartArray("requirements");
+      for (
+        uint256 requirementIdx;
+        requirementIdx < condition.requirements.length;
+        requirementIdx++
+      ) {
+        string[] memory requirement = condition.requirements[requirementIdx];
+        writer = writer.writeStartArray();
+        for (
+          uint256 requirementItemIdx;
+          requirementItemIdx < requirement.length;
+          requirementItemIdx++
+        ) {
+          writer = writer.writeStringValue(requirement[requirementItemIdx]);
+        }
+        writer = writer.writeEndArray();
+      }
+      writer = writer.writeEndArray();
+
+      // End object
+      writer = writer.writeEndObject();
+    }
+    // End array
+    writer = writer.writeEndArray();
+    return writer.value;
+  }
+
+  /**
    * @notice Fetch a list of all condition IDs
    * @return An array of condition IDs
    */
@@ -245,6 +354,18 @@ contract Allowlist {
    */
   function conditionsLength() public view returns (uint256) {
     return conditionsIds.length;
+  }
+
+  /**
+   * @notice Check whether or not a condition exists
+   * @param conditionId The ID of the condition
+   * @return exists Returns true if the condition exists, false if not
+   */
+  function conditionExists(string memory conditionId)
+    public
+    returns (bool exists)
+  {
+    return !Strings.stringsEqual(conditionById[conditionId].id, "");
   }
 
   /*******************************************************
@@ -302,7 +423,9 @@ contract Allowlist {
         revert("Unsupported requirement type");
       }
 
-      address implementationAddress = condition.implementationAddress;
+      address implementationAddress = implementationById[
+        condition.implementationId
+      ];
       require(
         implementationAddress != address(0),
         "Implementation address is not set"
@@ -344,5 +467,24 @@ contract Allowlist {
       abi.encodeWithSignature("validateConditions()")
     );
     return success;
+  }
+
+  /**
+   * @notice Determine whether or not a given target and calldata is valid
+   * @dev In order to be valid, target and calldata must pass the allowlist conditions tests
+   * @param targetAddress The target address of the method call
+   * @param data The raw calldata of the call
+   * @return isValid True if valid, false if not
+   */
+  function validateCalldata(address targetAddress, bytes calldata data)
+    public
+    view
+    returns (bool isValid)
+  {
+    isValid = CalldataValidation.validateCalldataByAllowlist(
+      address(this),
+      targetAddress,
+      data
+    );
   }
 }

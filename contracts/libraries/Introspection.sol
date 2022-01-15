@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.2;
+pragma solidity 0.8.11;
+
+/**
+ * @title Detect whether or not a contract implements a specific method signature
+ * @dev Works by scanning bytecode for PUSH4 operations
+ * @author yearn.finance
+ */
 
 library Introspection {
-  // function implementsMethodNameAndParamTypes(string memory methodName, string[])
   function implementsMethodSignature(address _address, string memory _signature)
     public
     view
