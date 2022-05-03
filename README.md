@@ -40,7 +40,7 @@ Here's an example of what a condition would look like for approving a Yearn vaul
 }
 ```
 
-An example of a valid transaction is:
+An example of a valid transaction for approving a token with the intention of depositing it into a Yearn vault is:
 
 target: `0x5c0A86A32c129538D62C106Eb8115a8b02358d57`
 
@@ -70,3 +70,17 @@ For protocols to create and register their own Allowlist they can do the followi
 An example deploy script can be found [here](https://github.com/yearn/yearn-allowlist/blob/main/scripts/chains/250/deploy.py)
 
 Yearn's implementation contracts can be found in this repo here - https://github.com/yearn/yearn-allowlist
+
+## Deployments
+
+| Contract               | Address                                    | 
+| ---------------------- | ------------------------------------------ | 
+| AllowlistRegistry      | 0xb39c4EF6c7602f1888E3f3347f63F26c158c0336 |
+| AllowlistFactory       | 0x383588DD317a7189522b8646b729b4B87794ccD1 |
+| AllowlistTemplate      | 0x4c87E89c1215f92e9F48c1Ae2201351ce7170f01 |
+| Strings                | 0xAf69afDC6b6BC0D61aBD47B3fF8999B0E0E23A27 | 
+| AbiDecoder             | 0x5D7201c10AfD0Ed1a1F408E321Ef0ebc7314B086 | 
+| CalldataValidation     | 0xA7e44772Ae8280698ce309F6e428De1EC3988e51 | 
+| Introspection          | 0xdf3d8FF6E3F18A756e83AC23F5f8B3c8219793E8 | 
+| JsonWriter             | 0x9d032763693D4eF989b630de2eCA8750BDe88219 |
+| EnsHelper              | 0x93171e4237EEfAC0E29046716C65a06f44F7b809 |
