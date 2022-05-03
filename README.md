@@ -73,14 +73,14 @@ Yearn's implementation contracts can be found in this repo here - https://github
 
 ## Deployments
 
-| Contract               | Address                                    | 
-| ---------------------- | ------------------------------------------ | 
-| AllowlistRegistry      | 0xb39c4EF6c7602f1888E3f3347f63F26c158c0336 |
-| AllowlistFactory       | 0x383588DD317a7189522b8646b729b4B87794ccD1 |
-| AllowlistTemplate      | 0x4c87E89c1215f92e9F48c1Ae2201351ce7170f01 |
-| Strings                | 0xAf69afDC6b6BC0D61aBD47B3fF8999B0E0E23A27 | 
-| AbiDecoder             | 0x5D7201c10AfD0Ed1a1F408E321Ef0ebc7314B086 | 
-| CalldataValidation     | 0xA7e44772Ae8280698ce309F6e428De1EC3988e51 | 
-| Introspection          | 0xdf3d8FF6E3F18A756e83AC23F5f8B3c8219793E8 | 
-| JsonWriter             | 0x9d032763693D4eF989b630de2eCA8750BDe88219 |
-| EnsHelper              | 0x93171e4237EEfAC0E29046716C65a06f44F7b809 |
+| Contract               | Address                                      | 
+| ---------------------- | -------------------------------------------- | 
+| AllowlistRegistry      | `0xb39c4EF6c7602f1888E3f3347f63F26c158c0336` |
+| AllowlistFactory       | `0x383588DD317a7189522b8646b729b4B87794ccD1` |
+| AllowlistTemplate      | `0x4c87E89c1215f92e9F48c1Ae2201351ce7170f01` |
+| Strings                | `0xAf69afDC6b6BC0D61aBD47B3fF8999B0E0E23A27` | 
+| AbiDecoder             | `0x5D7201c10AfD0Ed1a1F408E321Ef0ebc7314B086` | 
+| CalldataValidation     | `0xA7e44772Ae8280698ce309F6e428De1EC3988e51` | 
+| Introspection          | `0xdf3d8FF6E3F18A756e83AC23F5f8B3c8219793E8` | 
+| JsonWriter             | `0x9d032763693D4eF989b630de2eCA8750BDe88219` |
+| EnsHelper              | `0x93171e4237EEfAC0E29046716C65a06f44F7b809` |
