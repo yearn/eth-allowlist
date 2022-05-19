@@ -42,7 +42,7 @@ Here's an example of what a condition would look like for approving a Yearn vaul
 
 An example of a valid transaction for approving a token with the intention of depositing it into a Yearn vault is:
 
-target: `0x5c0A86A32c129538D62C106Eb8115a8b02358d57`
+target: `0x447Ddd4960d9fdBF6af9a790560d0AF76795CB08`
 
 calldata: `0x095ea7b30000000000000000000000005c0a86a32c129538d62c106eb8115a8b02358d570000000000000000000000000000000000c097ce7bc90715b34b9f1000000000`
 
