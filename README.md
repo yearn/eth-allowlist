@@ -48,7 +48,7 @@ calldata: `0x095ea7b30000000000000000000000005c0a86a32c129538d62c106eb8115a8b023
 
 There are 3 steps to validate it:
 
-1. We first check the [method selector](https://github.com/yearn/eth-allowlist/blob/03f2a9ad5716abd0dbfc6d45885f5d6a04061edc/contracts/libraries/CalldataValidation.sol#L72). From the condition we generate what we are expecting the the method selector to be for an approval transaction. Since we have the function name and parameters stored in the condition we can recreate the function and take `bytes4(keccak256(bytes(reconstructedMethodSignature)))`. We can then compare this against the first 4 bytes of the calldata, to ensure that a valid function is being called by the website. The 4 byte signature of `approve(address,uint256)` is `0x095ea7b3` so we can see that the calldata is valid for this.
+1. We first check the [method selector](https://github.com/yearn/eth-allowlist/blob/03f2a9ad5716abd0dbfc6d45885f5d6a04061edc/contracts/libraries/CalldataValidation.sol#L72). From the condition we generate what we are expecting the method selector to be for an approval transaction. Since we have the function name and parameters stored in the condition we can recreate the function and take `bytes4(keccak256(bytes(reconstructedMethodSignature)))`. We can then compare this against the first 4 bytes of the calldata, to ensure that a valid function is being called by the website. The 4 byte signature of `approve(address,uint256)` is `0x095ea7b3` so we can see that the calldata is valid for this.
 
 2. We then [validate the target](https://github.com/yearn/eth-allowlist/blob/03f2a9ad5716abd0dbfc6d45885f5d6a04061edc/contracts/libraries/CalldataValidation.sol#L50). To do this we make a call to the implementation contract of the condition, using the provided validation, in this case `isVaultUnderlyingToken`. We always know that we are validating an address so we can assume that that function has a single address parameter. It is also assumed that this function returns a `bool`. If the value returned is false then the transaction is not valid. In the implementation contract there is a function `isVaultUnderlyingToken` which then proceeds to call Yearn's vaults registry to perform the actual validation.
 
@@ -57,14 +57,14 @@ There are 3 steps to validate it:
 ## Who controls each website's Allowlist?
 The Allowlist was designed so that each website would have an instance of its own, but we need some way on chain to link each Allowlist to each website. To do this we use ENS/DNSSEC to verify the owner of each domain - https://docs.ens.domains/dns-registrar-guide. This way we know that control of the Allowlist is linked to control of the domain, and as long as this isn't compromised the correct Allowlist for a given website can be fetched. 
 
-The security of an Allowlist also depends on the impelementation contracts. If these were easily mutable, or were implemented incorrectly, then the security of the Allowlist would be compromised. It's best to make these contracts immutable, or if they need to be updatable, then ownership by the protocol's multisig would be preferable. 
+The security of an Allowlist also depends on the implementation contracts. If these were easily mutable, or were implemented incorrectly, then the security of the Allowlist would be compromised. It's best to make these contracts immutable, or if they need to be updatable, then ownership by the protocol's multisig would be preferable. 
 
 ## Registering as a protocol
 For protocols to create and register their own Allowlist they can do the following steps: 
 
 * Start the registration of the Allowlist using `registerProtocol` on the [Allowlist Registry contract](https://etherscan.io/address/0xb39c4EF6c7602f1888E3f3347f63F26c158c0336). This will deploy a new Allowlist for the protocol's domain. Note: the account starting the registration will need to be registered as the owner of the domain through ENS.
 * Deploy custom implementation contracts, that can be used to validate targets/parameters against
-* Link these impelementation contracts to the Allowlist by using the `setImplementation` function.
+* Link these implementation contracts to the Allowlist by using the `setImplementation` function.
 * Figure out all transactions that are created through the website, and create corresponding conditions. Set these conditions on the Allowlist using `addConditions`
 
 An example deploy script can be found [here](https://github.com/yearn/yearn-allowlist/blob/main/scripts/chains/250/deploy.py)
